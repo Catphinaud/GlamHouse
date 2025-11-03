@@ -1,0 +1,9 @@
+.vs/
+obj/
+bin/
+*.user
+.idea/
+/packages/
+riderModule.iml
+/_ReSharper.Caches/
+thirdparty/Glamourer.Api/

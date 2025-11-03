@@ -1,0 +1,3 @@
+[submodule "thirdparty/Glamourer.Api"]
+	path = thirdparty/Glamourer.Api
+	url = https://github.com/Ottermandias/Glamourer.Api.git
