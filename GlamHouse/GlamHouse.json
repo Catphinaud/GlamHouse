@@ -4,6 +4,9 @@
   "Punchline": "Waiting",
   "Description": "None",
   "ApplicableVersion": "any",
+  "InternalName": "GlamHouse",
+  "RepoUrl": "https://github.com/Catphinaud/GlamHouse",
+  "DalamudApiLevel": 13,
   "Tags": [
     "Housing",
     "Guest"
