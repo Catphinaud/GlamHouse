@@ -35,8 +35,7 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = $"Use {CommandName} help for a list of commands." +
-                          $" You can specify"
+            HelpMessage = $"Use {CommandName} help for a list of commands."
         });
 
         ECommonsMain.Init(pluginInterface, this, Module.ObjectLife);
@@ -70,7 +69,7 @@ public sealed class Plugin : IDalamudPlugin
         var lowerTrimmedArgs = arguments.Trim().ToLowerInvariant().Replace("au ra", "au'ra").Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
         var firstArg = lowerTrimmedArgs.FirstOrDefault() ?? string.Empty;
 
-        if (firstArg is "ui" or "window" or "config") {
+        if (firstArg is "ui" or "window" or "config" or "") {
             Instance?.OpenMainWindow();
             return;
         }

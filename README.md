@@ -5,20 +5,19 @@
 - Filter targets by race and/or gender (e.g. `femroe`, `male miqo`) before applying the glamour.
 
 ## Requirements
-- Dalamud (API level 13) running through XIVLauncher or another compatible loader.
-- The [Glamourer](https://github.com/Ottermandias/Glamourer) plugin installed and loaded. GlamHouse will refuse to run without it.
+- The [Glamourer](https://github.com/Ottermandias/Glamourer) plugin installed and loaded.
 
 ## Installation
 - `https://raw.githubusercontent.com/Catphinaud/DalamudPlugins/refs/heads/main/pluginmaster.json`
 
 ## Usage
+- `/glamhouse [ui]` - open the Glamourer user interface.
 - `/glamhouse help` - show the in-game usage summary.
-- `/glamhouse [players]` - apply to nearby players (default scope).
+- `/glamhouse players` - apply to nearby players (default scope).
 - `/glamhouse party` - apply to everyone in your party.
 - `/glamhouse npc` - affect nearby event and battle NPCs.
 - `/glamhouse all` - include every visible player, as well as NPCs.
 - `/glamhouse revert` (aliases: `reset`, `undo`, `r`) - restore every character modified by GlamHouse.
-- `/glamhouse ui` - open the Glamourer user interface.
 
 - `/glamhouse {race}` - apply to nearby players of the specified race.
 - `/glamhouse {gender}` - apply to nearby players of the specified gender.
