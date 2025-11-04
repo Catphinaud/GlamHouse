@@ -5,6 +5,7 @@
     <Description>GlamHouse</Description>
     <PackageProjectUrl>https://github.com/Catphinaud/GlamHouse</PackageProjectUrl>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+    <AppendPlatformToOutputPath>false</AppendPlatformToOutputPath>
   </PropertyGroup>
     <ItemGroup>
       <ProjectReference Include="..\thirdparty\Glamourer.Api\Glamourer.Api.csproj" />
