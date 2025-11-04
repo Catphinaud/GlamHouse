@@ -68,8 +68,8 @@ public sealed class Plugin : IDalamudPlugin
             { Race.Miqote, ["miqote", "miqo'te", "cat", "miqo", "kitty"] },
             { Race.Roegadyn, ["roegadyn", "roe", "big"] },
             { Race.AuRa, ["aura", "lizzy", "au'ra"] },
-            { Race.Hrothgar, ["hrothgar", "doggie", "dog", "hrogh"] },
-            { Race.Viera, ["viera", "bunny", "bunnygirl", "rabbit", "bun"] }
+            { Race.Hrothgar, ["hrothgar", "hrogh", "dog"] },
+            { Race.Viera, ["viera", "rabbit", "bun"] }
         };
 
         var genderWords = new Dictionary<Gender, List<string>>
