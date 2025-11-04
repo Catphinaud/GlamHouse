@@ -70,16 +70,19 @@ internal class GlamourerInteropt
             Svc.Framework.Run(() => {
                 _RevertState.Invoke(playerIndex, flags: ApplyFlag.Equipment);
 
+                var notAdded = true;
+
                 foreach (var slot in Enum.GetValues<PlateSlot>()) {
                     if (!plate.Items.TryGetValue(slot, out var item)) {
                         if (!plate.FillWithNewEmperor) {
                             continue;
                         }
 
-                        uint empItem = GetEmperorItemForSlot(slot);
+                        var empItem = GetEmperorItemForSlot(slot);
                         if (empItem != 0) {
                             _SetItem.Invoke(playerIndex, ConvertSlot(slot), empItem, [0, 0]);
                             ChangedPlayers.Add(playerIndex);
+                            notAdded = false;
                         }
 
                         continue;
@@ -87,6 +90,11 @@ internal class GlamourerInteropt
 
                     _SetItem.Invoke(playerIndex, ConvertSlot(slot), item.ItemId, [item.Stain1, item.Stain2]);
                     ChangedPlayers.Add(playerIndex);
+                    notAdded = false;
+                }
+
+                if (notAdded) {
+                    Plugin.Tracker.Remove(playerIndex);
                 }
             });
         } catch (Exception ex) {
@@ -106,6 +114,7 @@ internal class GlamourerInteropt
                 foreach (var playerIndex in ChangedPlayers.ToArray()) {
                     _RevertState.Invoke(playerIndex, flags: ApplyFlag.Equipment);
                     ChangedPlayers.Remove(playerIndex);
+                    Plugin.Tracker.Remove(playerIndex);
                 }
             });
         } catch (Exception ex) {

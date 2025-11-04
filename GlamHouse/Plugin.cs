@@ -21,6 +21,8 @@ public sealed class Plugin : IDalamudPlugin
 {
     private const string CommandName = "/glamhouse";
 
+    internal static GlamourTracking Tracker { get; } = new();
+
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
         PluginInterface = pluginInterface;
@@ -207,6 +209,7 @@ public sealed class Plugin : IDalamudPlugin
             }
 
             try {
+                Tracker.RecordApplied(objIndex, member.Name, Race.Unknown, Gender.Unknown, member.IGameObject.ObjectKind);
                 GlamourerInteropt.TryOn(objIndex, plate);
             } catch (Exception ex) {
                 Svc.Log.Error(ex, $"Failed to glamour party member: {member.Name} (ObjectIndex: {objIndex})");
@@ -282,6 +285,8 @@ public sealed class Plugin : IDalamudPlugin
                     continue;
                 }
 
+                Tracker.RecordApplied(objIndex, player.Name.ToString(), race, gender, player.ObjectKind);
+
                 GlamourerInteropt.TryOn(objIndex, plate);
             } catch (Exception ex) {
                 Svc.Log.Error(ex, $"Failed to glamour nearby player: {player.Name} (ObjectIndex: {objIndex})");
@@ -315,6 +320,8 @@ public sealed class Plugin : IDalamudPlugin
             }
 
             try {
+                Tracker.RecordApplied(objIndex, o.Name.ToString(), Race.Unknown, Gender.Unknown, o.ObjectKind);
+
                 GlamourerInteropt.TryOn(objIndex, plate);
             } catch (Exception ex) {
                 Svc.Log.Error(ex, $"Failed to glamour nearby NPC: {o.Name} (ObjectIndex: {objIndex})");
