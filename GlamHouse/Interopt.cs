@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Plugin;
 using ECommons.DalamudServices;
-using ECommons.GameFunctions;
 using Glamourer.Api.Enums;
 using Glamourer.Api.IpcSubscribers;
 
@@ -206,111 +204,4 @@ internal enum PlateSlot : uint
     Wrists = 9,
     RightRing = 10,
     LeftRing = 11,
-}
-
-internal class TryOnHelper
-{
-    private static readonly Dictionary<ulong, bool> TriedOn = new();
-
-    public static void TryOnGlamourer(bool withEmperor, HashSet<uint>? playersList = null)
-    {
-        if (Svc.ClientState.LocalPlayer == null) {
-            return;
-        }
-
-        var plate = new SavedPlate("Glamourer")
-        {
-            Items = new Dictionary<PlateSlot, SavedGlamourItem>(),
-            FillWithNewEmperor = withEmperor
-        };
-
-        TriedOn.Clear();
-
-        if (playersList is { Count: > 0 }) {
-            foreach (var player in Svc.Objects.PlayerObjects) {
-                var objIndex = player.ObjectIndex;
-                if (TriedOn.ContainsKey(objIndex) && TriedOn[objIndex]) {
-                    continue;
-                }
-
-                TriedOn[objIndex] = true;
-
-                if (!player.IsValid()) {
-                    continue;
-                }
-
-                if (!player.IsCharacterVisible()) {
-                    continue;
-                }
-
-                GlamourerInteropt.TryOn(objIndex, plate);
-            }
-
-            return;
-        }
-
-        Svc.Log.Debug($"Trying on Glamourer plate with {plate.Items.Count} items.");
-        foreach (var item in plate.Items) {
-            Svc.Log.Debug($"Slot: {item.Key}, ItemId: {item.Value.ItemId}, Stain1: {item.Value.Stain1}, Stain2: {item.Value.Stain2}");
-        }
-
-        foreach (var player in Svc.Objects.PlayerObjects) {
-            var objIndex = player.ObjectIndex;
-
-            TriedOn[objIndex] = true;
-
-            if (!player.IsValid()) {
-                continue;
-            }
-
-            if (!player.IsCharacterVisible()) {
-                continue;
-            }
-
-            // var chara = player.Character();
-
-            // if (chara != null && chara->Sex == 0) {
-            //     continue;
-            // }
-
-            GlamourerInteropt.TryOn(objIndex, plate);
-        }
-
-        var obj = Svc.Objects.StandObjects;
-        foreach (var o in obj) {
-            var objIndex = o.ObjectIndex;
-
-            if (TriedOn.ContainsKey(objIndex) && TriedOn[objIndex]) {
-                continue;
-            }
-
-            TriedOn[objIndex] = true;
-
-            if (!o.IsValid()) {
-                continue;
-            }
-
-            GlamourerInteropt.TryOn(objIndex, plate);
-        }
-
-
-        foreach (var eventObject in Svc.Objects.EventObjects) {
-            if (!eventObject.IsValid()) {
-                continue;
-            }
-
-            var objIndex = eventObject.ObjectIndex;
-            if (TriedOn.ContainsKey(objIndex) && TriedOn[objIndex]) {
-                continue;
-            }
-
-            TriedOn[objIndex] = true;
-
-            if (eventObject.ObjectKind is not (ObjectKind.EventNpc or ObjectKind.BattleNpc)) {
-                continue;
-            }
-
-            GlamourerInteropt.TryOn(objIndex, plate);
-        }
-    }
 }

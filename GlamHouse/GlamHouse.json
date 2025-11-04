@@ -1,14 +1,16 @@
 {
-  "Author": "Catphinaud",
-  "Name": "GlamHouse",
-  "Punchline": "Waiting",
-  "Description": "None",
-  "ApplicableVersion": "any",
-  "InternalName": "GlamHouse",
-  "RepoUrl": "https://github.com/Catphinaud/GlamHouse",
-  "DalamudApiLevel": 13,
-  "Tags": [
-    "Housing",
-    "Guest"
-  ]
+    "Author": "Catphinaud",
+    "Name": "GlamHouse",
+    "Punchline": "Force Emperor on a ton of stuff",
+    "Description": "Forces the Emperor outfit on various players or NPC's for the lulz of it",
+    "IconUrl": "https://raw.githubusercontent.com/Catphinaud/Glamhouse/main/images/icon.png",
+    "ApplicableVersion": "any",
+    "InternalName": "GlamHouse",
+    "RepoUrl": "https://github.com/Catphinaud/GlamHouse",
+    "DalamudApiLevel": 13,
+    "Tags": [
+        "emperor",
+        "glamour",
+        "glamourer"
+    ]
 }
