@@ -172,8 +172,6 @@ internal sealed class GlamHouseWindow : Window
                 ImGui.SetItemDefaultFocus();
             }
         }
-
-        ImGui.EndCombo();
     }
 
     private void DrawGenderCombo()
@@ -194,8 +192,6 @@ internal sealed class GlamHouseWindow : Window
                 ImGui.SetItemDefaultFocus();
             }
         }
-
-        ImGui.EndCombo();
     }
 
     private void DrawRaceCombo()
