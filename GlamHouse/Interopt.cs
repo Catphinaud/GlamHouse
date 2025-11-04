@@ -122,6 +122,28 @@ internal class GlamourerInteropt
         }
     }
 
+    public static void Revert(int objectIndex)
+    {
+        if (!IsAvailable()) {
+            Svc.Log.Warning("Glamourer IPC is not available.");
+            return;
+        }
+
+        try {
+            Svc.Framework.Run(() => {
+                if (!ChangedPlayers.Contains(objectIndex)) {
+                    return;
+                }
+
+                _RevertState.Invoke(objectIndex, flags: ApplyFlag.Equipment);
+                ChangedPlayers.Remove(objectIndex);
+                Plugin.Tracker.Remove(objectIndex);
+            });
+        } catch (Exception ex) {
+            Svc.Log.Error(ex, "Error while trying to communicate with Glamourer.");
+        }
+    }
+
     internal static uint GetEmperorItemForSlot(PlateSlot slot)
     {
         return slot switch

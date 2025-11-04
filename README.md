@@ -18,7 +18,7 @@
 - `/glamhouse npc` - affect nearby event and battle NPCs.
 - `/glamhouse all` - include every visible player, as well as NPCs.
 - `/glamhouse revert` (aliases: `reset`, `undo`, `r`) - restore every character modified by GlamHouse.
-
+- `/glamhouse ui` - open the Glamourer user interface.
 
 - `/glamhouse {race}` - apply to nearby players of the specified race.
 - `/glamhouse {gender}` - apply to nearby players of the specified gender.

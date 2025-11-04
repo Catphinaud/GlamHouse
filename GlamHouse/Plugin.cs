@@ -2,9 +2,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using Dalamud.Game.ClientState.Objects.Enums;
+using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Command;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.ImGuiNotification;
+using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -22,6 +24,10 @@ public sealed class Plugin : IDalamudPlugin
     private const string CommandName = "/glamhouse";
 
     internal static GlamourTracking Tracker { get; } = new();
+    internal static Plugin? Instance { get; private set; }
+
+    private readonly WindowSystem _windowSystem = new("GlamHouse");
+    private GlamHouseWindow _window;
 
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
@@ -36,6 +42,15 @@ public sealed class Plugin : IDalamudPlugin
         ECommonsMain.Init(pluginInterface, this, Module.ObjectLife);
 
         GlamourerInteropt.Initialize(pluginInterface);
+
+        Instance = this;
+
+        _window = new GlamHouseWindow(pluginInterface);
+        _windowSystem.AddWindow(_window);
+
+        pluginInterface.UiBuilder.Draw += DrawUi;
+        pluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
+        pluginInterface.UiBuilder.OpenConfigUi += ToggleMainUi;
     }
 
     private static void OnCommand(string command, string arguments)
@@ -54,6 +69,11 @@ public sealed class Plugin : IDalamudPlugin
 
         var lowerTrimmedArgs = arguments.Trim().ToLowerInvariant().Replace("au ra", "au'ra").Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
         var firstArg = lowerTrimmedArgs.FirstOrDefault() ?? string.Empty;
+
+        if (firstArg is "ui" or "window" or "config") {
+            Instance?.OpenMainWindow();
+            return;
+        }
 
         if (firstArg is "revert" or "reset" or "undo" or "r") {
             GlamourerInteropt.Revert();
@@ -86,6 +106,8 @@ public sealed class Plugin : IDalamudPlugin
                     .AddUiForeground($"GlamHouse v{Svc.PluginInterface.Manifest.AssemblyVersion} \n", 37)
                     .AddUiForeground($"{CommandName} {{ command | race | gender | [gender]race[gender] }}", 43);
 
+            AddCommandHelp(builder, "help", "Show this help message.");
+            AddCommandHelp(builder, "ui, window, config", "Open the GlamHouse configuration window.");
             AddCommandHelp(builder, "party, players, all and npc", "Specify target scope. Default is players nearby.");
             AddCommandHelp(builder, "revert", "Revert all players changed by GlamHouse.");
 
@@ -160,6 +182,21 @@ public sealed class Plugin : IDalamudPlugin
         Toggle(input);
     }
 
+    private void DrawUi()
+    {
+        _windowSystem.Draw();
+    }
+
+    private void ToggleMainUi()
+    {
+        _window.Toggle();
+    }
+
+    internal void OpenMainWindow()
+    {
+        _window.IsOpen = true;
+    }
+
     private static void AddCommandHelp(SeStringBuilder builder, string command, string? description = null)
     {
         builder.AddText("\n");
@@ -180,9 +217,21 @@ public sealed class Plugin : IDalamudPlugin
             TryOnAllNearby(input);
         }
 
-        if (input.Scope == TargetScope.Npc) {
+        if (input.Scope is TargetScope.Npc or TargetScope.All) {
             TryOnAllNearbyNpcs();
         }
+    }
+
+    internal static void Apply(FilterInput input) => Toggle(input);
+
+    internal static void ResetAll()
+    {
+        GlamourerInteropt.Revert();
+    }
+
+    internal static void RevertTracked(int objectIndex)
+    {
+        GlamourerInteropt.Revert(objectIndex);
     }
 
     private static void TryOnParty()
@@ -294,7 +343,7 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
-    private static void TryOnAllNearbyNpcs()
+    private static unsafe void TryOnAllNearbyNpcs()
     {
         if (Svc.ClientState.LocalPlayer == null) {
             return;
@@ -308,7 +357,7 @@ public sealed class Plugin : IDalamudPlugin
 
         var doneObjectIndexes = new HashSet<int>();
 
-        foreach (var o in Svc.Objects.StandObjects.Concat(Svc.Objects.EventObjects).Where(o => o.ObjectKind is ObjectKind.EventNpc or ObjectKind.BattleNpc)) {
+        foreach (IGameObject o in Svc.Objects.StandObjects.Concat(Svc.Objects.EventObjects).Where(o => o.ObjectKind is ObjectKind.EventNpc or ObjectKind.BattleNpc)) {
             var objIndex = o.ObjectIndex;
 
             if (!doneObjectIndexes.Add(objIndex)) {
@@ -318,6 +367,8 @@ public sealed class Plugin : IDalamudPlugin
             if (!o.IsValid()) {
                 continue;
             }
+
+            Svc.Log.Warning($"Trying to glamour nearby NPC: {o.Name} {o.GetType()}");
 
             try {
                 Tracker.RecordApplied(objIndex, o.Name.ToString(), Race.Unknown, Gender.Unknown, o.ObjectKind);
@@ -351,8 +402,16 @@ public sealed class Plugin : IDalamudPlugin
             GlamourerInteropt.Revert();
         }
 
+        PluginInterface.UiBuilder.Draw -= DrawUi;
+        PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
+        PluginInterface.UiBuilder.OpenConfigUi -= ToggleMainUi;
+
+        _windowSystem.RemoveAllWindows();
+
         CommandManager.RemoveHandler(CommandName);
         ECommonsMain.Dispose();
+
+        Instance = null;
     }
 }
 

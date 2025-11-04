@@ -12,6 +12,8 @@ internal sealed class GlamourTracking
 
     private readonly Dictionary<int, Entry> _entries = new();
 
+    public int Count => _entries.Count;
+
     public void RecordApplied(int objectIndex, string name, Race race, Gender gender, ObjectKind kind)
     {
         if (objectIndex < 0) return;
