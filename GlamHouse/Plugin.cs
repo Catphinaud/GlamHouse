@@ -28,6 +28,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private readonly WindowSystem _windowSystem = new("GlamHouse");
     private GlamHouseWindow _window;
+    internal static Config Config = null!;
 
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
@@ -39,6 +40,8 @@ public sealed class Plugin : IDalamudPlugin
         });
 
         ECommonsMain.Init(pluginInterface, this, Module.ObjectLife);
+
+        Config = pluginInterface.GetPluginConfig() as Config ?? new Config();
 
         GlamourerInteropt.Initialize(pluginInterface);
 
@@ -69,9 +72,28 @@ public sealed class Plugin : IDalamudPlugin
         var lowerTrimmedArgs = arguments.Trim().ToLowerInvariant().Replace("au ra", "au'ra").Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
         var firstArg = lowerTrimmedArgs.FirstOrDefault() ?? string.Empty;
 
-        if (firstArg is "ui" or "window" or "config" or "") {
+        if (firstArg is "ui" or "window" or "config") {
             Instance?.OpenMainWindow();
             return;
+        }
+
+        if (firstArg == string.Empty) {
+            // Use configured default behavior for no-argument invocation
+            switch (Config.DefaultNoArgBehavior)
+            {
+                case DefaultNoArgBehavior.OpenUi:
+                    Instance?.OpenMainWindow();
+                    return;
+                case DefaultNoArgBehavior.Party:
+                    Toggle(new FilterInput { Scope = TargetScope.Party });
+                    return;
+                case DefaultNoArgBehavior.Everyone:
+                    Toggle(new FilterInput { Scope = TargetScope.All });
+                    return;
+                default:
+                    Instance?.OpenMainWindow();
+                    return;
+            }
         }
 
         if (firstArg is "revert" or "reset" or "undo" or "r") {
@@ -109,6 +131,7 @@ public sealed class Plugin : IDalamudPlugin
             AddCommandHelp(builder, "ui, window, config", "Open the GlamHouse configuration window.");
             AddCommandHelp(builder, "party, players, all and npc", "Specify target scope. Default is players nearby.");
             AddCommandHelp(builder, "revert", "Revert all players changed by GlamHouse.");
+            builder.AddText("\nNo-arg behavior is configurable: Open UI (default), Party, Everyone.");
 
             // or /glamhouse {gender} or /glamhouse {race} or /glamhouse {gender} {race} (you may mix order)
 
@@ -342,7 +365,7 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
-    private static unsafe void TryOnAllNearbyNpcs()
+    private static void TryOnAllNearbyNpcs()
     {
         if (Svc.ClientState.LocalPlayer == null) {
             return;

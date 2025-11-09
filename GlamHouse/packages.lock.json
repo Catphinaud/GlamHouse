@@ -16,9 +16,9 @@
       },
       "ECommons": {
         "type": "Direct",
-        "requested": "[3.0.1.20, )",
-        "resolved": "3.0.1.20",
-        "contentHash": "dvBP03mG+qU9IsbWY8OboYtEVPS+Ba8L5v4xibfTD5eIdkL8xcT44hDvTZPmQfyR/9BpfH9Vq1pv4p3DwXXCxw=="
+        "requested": "[3.0.1.26, )",
+        "resolved": "3.0.1.26",
+        "contentHash": "uPmrlihq3EVWy9ahfuKSuywoeDz3dkTHhxvFGSwiG7DAKmSmMANHN2ZZm39GnuCa5v0LwrAGZCsVPaUigdbDfg=="
       },
       "glamourer.api": {
         "type": "Project"

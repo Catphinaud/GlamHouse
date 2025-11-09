@@ -39,6 +39,13 @@ internal sealed class GlamHouseWindow : Window
         (Gender.Female, "Female"),
     };
 
+    private static readonly (DefaultNoArgBehavior Behavior, string Label)[] DefaultBehaviorOptions =
+    {
+        (DefaultNoArgBehavior.OpenUi, "Open UI (Default)"),
+        (DefaultNoArgBehavior.Party, "Party"),
+        (DefaultNoArgBehavior.Everyone, "Everyone"),
+    };
+
     private readonly IDalamudPluginInterface _pluginInterface;
 
     private DateTime _nextIpcCheck = DateTime.MinValue;
@@ -68,13 +75,42 @@ internal sealed class GlamHouseWindow : Window
     {
         CheckIpcStatus();
 
-        DrawIpcStatus();
-        ImGui.Spacing();
+        if (!_isIpcAvailable) {
+            ImGui.TextColored(ImGuiColors.DalamudYellow,
+                "No Glamourer IPC connection. Last checked " +
+                $"{(int) (DateTime.UtcNow - _lastStatusUpdate).TotalSeconds}s ago."
+            );
 
-        DrawQuickActions();
-        ImGui.Separator();
+            ImGui.Spacing();
 
-        DrawAdvancedMode();
+            return;
+        }
+
+        using var tabmenu = ImRaii.TabBar("GlamHouseTabMenu");
+
+        using (var tab = ImRaii.TabItem("Actions")) {
+            if (tab.Success) {
+                DrawQuickActions();
+            }
+        }
+
+        using (var tab = ImRaii.TabItem("Advanced")) {
+            if (tab.Success) {
+                DrawAdvancedMode();
+            }
+        }
+
+        using (var tab = ImRaii.TabItem("Config")) {
+            if (tab.Success) {
+                DrawConfigSection();
+            }
+        }
+
+        using (var tab = ImRaii.TabItem("Status")) {
+            if (tab.Success) {
+                DrawIpcStatus();
+            }
+        }
     }
 
     private void DrawIpcStatus()
@@ -89,28 +125,43 @@ internal sealed class GlamHouseWindow : Window
         }
     }
 
+    private void DrawConfigSection()
+    {
+        ImGui.SetNextItemWidth(260f);
+
+        using var combo = ImRaii.Combo("/glamhouse with no sub-commands", GetDefaultBehaviorLabel(Plugin.Config.DefaultNoArgBehavior));
+        if (!combo.Success) return;
+        foreach (var (behavior, label) in DefaultBehaviorOptions) {
+            var selected = behavior == Plugin.Config.DefaultNoArgBehavior;
+            if (ImGui.Selectable(label, selected)) {
+                Plugin.Config.DefaultNoArgBehavior = behavior;
+                Plugin.Config.Save();
+            }
+
+            if (selected) ImGui.SetItemDefaultFocus();
+        }
+    }
+
     private void DrawQuickActions()
     {
-        ImGui.Text("Quick Glamour Actions");
-
         using var _ = ImRaii.Disabled(!_isIpcAvailable);
 
-        if (ImGui.Button("Players Nearby")) {
+        if (ImGui.Button("Players Nearby###PlayersNearby")) {
             Plugin.Apply(new FilterInput { Scope = TargetScope.Player });
         }
 
-        ImGui.SameLine();
-        if (ImGui.Button("Party")) {
+//        ImGui.SameLine();
+        if (ImGui.Button("Party Members###PartyMembers")) {
             Plugin.Apply(new FilterInput { Scope = TargetScope.Party });
         }
 
-        ImGui.SameLine();
-        if (ImGui.Button("Nearby NPCs")) {
+//        ImGui.SameLine();
+        if (ImGui.Button("Nearby NPCs###NearbyNpcs")) {
             Plugin.Apply(new FilterInput { Scope = TargetScope.Npc });
         }
 
-        ImGui.SameLine();
-        if (ImGui.Button("Everyone")) {
+//        ImGui.SameLine();
+        if (ImGui.Button("Everyone###EveryoneNearby")) {
             Plugin.Apply(new FilterInput { Scope = TargetScope.All });
         }
 
@@ -118,7 +169,7 @@ internal sealed class GlamHouseWindow : Window
             ImGui.SetTooltip("Apply to both players and NPCs around you.");
         }
 
-        ImGui.SameLine();
+//        ImGui.SameLine();
 
         using (ImRaii.Disabled(Plugin.Tracker.Count == 0)) {
             if (ImGui.Button("Reset Glamours")) {
@@ -286,7 +337,7 @@ internal sealed class GlamHouseWindow : Window
         _isIpcValid = GlamourerInteropt.IsIPCValid();
 
         _lastStatusUpdate = now;
-        _nextIpcCheck = now.AddSeconds(20);
+        _nextIpcCheck = now.AddSeconds(5); // check every 5s
     }
 
     private static string GetScopeLabel(TargetScope scope)
@@ -320,6 +371,15 @@ internal sealed class GlamHouseWindow : Window
         }
 
         return gender.ToString();
+    }
+
+    private static string GetDefaultBehaviorLabel(DefaultNoArgBehavior behavior)
+    {
+        foreach (var (b, label) in DefaultBehaviorOptions) {
+            if (b == behavior) return label;
+        }
+
+        return behavior.ToString();
     }
 
     private static string FormatAppliedAt(DateTime appliedAtUtc)
