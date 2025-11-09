@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
@@ -56,6 +57,96 @@ internal sealed class GlamHouseWindow : Window
     private TargetScope _selectedScope = TargetScope.Player;
     private Race _selectedRace = Race.Unknown;
     private Gender _selectedGender = Gender.Unknown;
+
+    // Editing/commit-mode state for presets
+    private string _editingPresetId = string.Empty; // Guid string in "N" format
+    private string _editingName = string.Empty;
+    private string _editingCommand = string.Empty;
+    private TargetScope _editingScope = TargetScope.All;
+    private Dictionary<Race, GenderSelection> _editingSelections = new();
+    private bool _editingDirty = false;
+    private string _presetValidationError = string.Empty;
+
+    private static readonly HashSet<string> ReservedTokens = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // core commands
+        "help","ui","window","config","revert","reset","undo","r",
+        // scopes
+        "party","npc","players","all",
+        // gender words
+        "male","man","female","fem",
+        // common race tokens / aliases (from Plugin.OnCommand)
+        "hyur","bot","elezen","elf","tall","lalafell","lala","short",
+        "miqote","miqo'te","miqo","kitty","roegadyn","roe","big","aura","au'ra","lizzy","hrothgar","hrogh","dog","viera","rabbit","bun"
+    };
+
+    private void StartEditing(RaceGenderPreset preset)
+    {
+        _editingPresetId = preset.Id.ToString("N");
+        _editingName = preset.Name;
+        _editingCommand = preset.Command;
+        _editingScope = preset.Scope;
+        _editingSelections = preset.Selections.ToDictionary(kv => kv.Key, kv => new GenderSelection { Male = kv.Value.Male, Female = kv.Value.Female });
+        _editingDirty = false;
+        _presetValidationError = string.Empty;
+    }
+
+    private void StopEditing(bool save)
+    {
+        if (string.IsNullOrEmpty(_editingPresetId)) return;
+
+        var preset = Plugin.Config.Presets.FirstOrDefault(p => p.Id.ToString("N") == _editingPresetId);
+        if (preset != null && save) {
+            // apply buffer to actual preset
+            preset.Name = _editingName.Trim();
+            preset.Command = _editingCommand.Trim();
+            preset.Scope = _editingScope;
+            preset.Selections = new Dictionary<Race, GenderSelection>(_editingSelections);
+            Plugin.Config.Save();
+        }
+
+        _editingPresetId = string.Empty;
+        _editingDirty = false;
+        _presetValidationError = string.Empty;
+    }
+
+    private bool ValidateEditing(RaceGenderPreset currentPreset)
+    {
+        _presetValidationError = string.Empty;
+
+        var name = _editingName.Trim();
+        var cmd = _editingCommand.Trim();
+
+        if (string.IsNullOrWhiteSpace(name)) {
+            _presetValidationError = "Name cannot be empty.";
+            return false;
+        }
+
+        // duplicate name
+        if (Plugin.Config.Presets.Any(p => p.Id.ToString("N") != currentPreset.Id.ToString("N") && string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))) {
+            _presetValidationError = "A preset with this name already exists.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(cmd)) {
+            _presetValidationError = "Command cannot be empty.";
+            return false;
+        }
+
+        // reserved tokens
+        if (ReservedTokens.Contains(cmd.ToLowerInvariant())) {
+            _presetValidationError = $"'{cmd}' is a reserved command or alias and cannot be used.";
+            return false;
+        }
+
+        // duplicate command
+        if (Plugin.Config.Presets.Any(p => p.Id.ToString("N") != currentPreset.Id.ToString("N") && string.Equals(p.Command, cmd, StringComparison.OrdinalIgnoreCase))) {
+            _presetValidationError = "A preset with this command already exists.";
+            return false;
+        }
+
+        return true;
+    }
 
     public GlamHouseWindow(IDalamudPluginInterface pluginInterface) : base("GlamHouse")
     {
@@ -148,7 +239,12 @@ internal sealed class GlamHouseWindow : Window
 
     private void DrawPresetsSection()
     {
-        ImGui.Text("Presets");
+        var anyDirty = !string.IsNullOrEmpty(_editingPresetId) && _editingDirty;
+        if (anyDirty) {
+            ImGui.TextColored(ImGuiColors.DalamudYellow, "Presets (Unsaved Changes)");
+        } else {
+            ImGui.Text("Presets");
+        }
         ImGui.SameLine();
         if (ImGui.SmallButton("+ Add Preset##AddPreset")) {
             var preset = new RaceGenderPreset
@@ -168,117 +264,170 @@ internal sealed class GlamHouseWindow : Window
         ImGui.Spacing();
 
         foreach (var preset in Plugin.Config.Presets.ToList()) {
-            var selected = _selectedPresetCommand == preset.Id.ToString();
+            var selected = _selectedPresetCommand == preset.Id.ToString("N");
 
-            // bool open = ImGui.CollapsingHeader(string.IsNullOrWhiteSpace(preset.Name) ? "(unnamed preset)" : preset.Name, ImGuiTreeNodeFlags.DefaultOpen);
-            bool open = ImGui.CollapsingHeader($"{preset.Name}##{preset.Id}",
-                _selectedPresetCommand == preset.Command ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None);
+            // Use the preset's "N" format ID to avoid duplicate header issues
+            bool open = ImGui.CollapsingHeader($"{preset.Name}##{preset.Id.ToString("N")}", selected ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None);
 
             ImGui.PushID(preset.Id.ToString("N"));
 
             if (open) {
-                _selectedPresetCommand = preset.Id.ToString();
+                _selectedPresetCommand = preset.Id.ToString("N");
 
-                string name = preset.Name ?? string.Empty;
-                if (ImGui.InputText("Name##PresetName", ref name, 128)) {
-                    preset.Name = name;
-                    Plugin.Config.Save();
+                // If starting to edit a new preset, initialize buffer
+                if (_editingPresetId != preset.Id.ToString("N")) {
+                    StartEditing(preset);
                 }
 
-                string command = preset.Command ?? string.Empty;
-                if (ImGui.InputText("Command (used in /glamhouse)##PresetCommand", ref command, 64)) {
-                    preset.Command = command.Trim();
-                    Plugin.Config.Save();
-                }
-
-                ImGui.TextDisabled($"Id: {preset.Id}");
-
-                ImGui.Spacing();
-
-                // Apply buttons
-                using (ImRaii.Disabled(!_isIpcAvailable)) {
-                    if (ImGui.Button("Apply to Nearby Players##ApplyPlayers")) {
-                        Plugin.Apply(new FilterInput { Scope = TargetScope.Player, Preset = preset });
+                // Draw buffered inputs
+                if (_editingPresetId == preset.Id.ToString("N")) {
+                    string name = _editingName;
+                    if (ImGui.InputText("Name##PresetName", ref name, 128)) {
+                        _editingName = name;
+                        _editingDirty = true;
                     }
 
-                    ImGui.SameLine();
-                    if (ImGui.Button("Apply to Party##ApplyParty")) {
-                        Plugin.Apply(new FilterInput { Scope = TargetScope.Party, Preset = preset });
+                    string command = _editingCommand;
+                    if (ImGui.InputText("Command (used in /glamhouse)##PresetCommand", ref command, 64)) {
+                        _editingCommand = command.Trim();
+                        _editingDirty = true;
                     }
 
-                    ImGui.SameLine();
-                    if (ImGui.Button("Apply to Everyone Nearby##ApplyAll")) {
-                        Plugin.Apply(new FilterInput { Scope = TargetScope.All, Preset = preset });
-                    }
-                }
+                    ImGui.TextDisabled($"Id: {preset.Id}");
 
-                ImGui.Spacing();
-                ImGui.Separator();
-                ImGui.Text("Per-Race Gender Selection");
+                    ImGui.Spacing();
 
-                using (var table = ImRaii.Table("PresetRaceTable", 4, ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.SizingFixedFit)) {
-                    if (table.Success) {
-                        ImGui.TableSetupColumn("Race", ImGuiTableColumnFlags.WidthFixed, 140f);
-                        ImGui.TableSetupColumn("Both", ImGuiTableColumnFlags.WidthFixed, 60f);
-                        ImGui.TableSetupColumn("Male", ImGuiTableColumnFlags.WidthFixed, 60f);
-                        ImGui.TableSetupColumn("Female", ImGuiTableColumnFlags.WidthFixed, 60f);
-                        ImGui.TableHeadersRow();
+                    // Scope selector (buffered)
+                    ImGui.SetNextItemWidth(200f);
+                    using (var scopeCombo = ImRaii.Combo($"Scope##PresetScope-{preset.Id}", GetScopeLabel(_editingScope))) {
+                        if (scopeCombo.Success) {
+                            foreach (var (scope, label) in ScopeOptions) {
+                                var selScope = scope == _editingScope;
+                                if (ImGui.Selectable(label, selScope)) {
+                                    _editingScope = scope;
+                                    _editingDirty = true;
+                                }
 
-                        foreach (var (race, label) in RaceOptions) {
-                            using var id = ImRaii.PushId($"{race}-{preset.Id}");
-                            if (race == Race.Unknown) continue; // skip 'Any'
-                            ImGui.TableNextRow();
-
-                            ImGui.TableNextColumn();
-                            ImGui.TextUnformatted(label);
-
-                            var sel = preset.Selections.TryGetValue(race, out var current)
-                                ? current
-                                : new GenderSelection { Male = false, Female = false };
-
-                            // Both
-                            ImGui.TableNextColumn();
-                            bool both = sel.Male && sel.Female;
-                            if (ImGui.Checkbox("##Both", ref both)) {
-                                sel.Male = both;
-                                sel.Female = both;
-                                preset.Selections[race] = sel;
-                                Plugin.Config.Save();
-                            }
-
-                            // Male
-                            ImGui.TableNextColumn();
-                            bool male = sel.Male;
-                            if (ImGui.Checkbox("##Male", ref male)) {
-                                sel.Male = male;
-                                preset.Selections[race] = sel;
-                                Plugin.Config.Save();
-                            }
-
-                            // Female
-                            ImGui.TableNextColumn();
-                            bool female = sel.Female;
-                            if (ImGui.Checkbox("##Female", ref female)) {
-                                sel.Female = female;
-                                preset.Selections[race] = sel;
-                                Plugin.Config.Save();
+                                if (selScope) ImGui.SetItemDefaultFocus();
                             }
                         }
                     }
-                }
 
-                ImGui.Spacing();
+                    ImGui.Spacing();
 
-                ImGui.PushStyleColor(ImGuiCol.Button, ImGuiColors.DalamudRed);
-                if (ImGui.Button("Delete Preset##DeletePreset")) {
-                    Plugin.Config.Presets.Remove(preset);
-                    Plugin.Config.Save();
+                    // If dirty, show Save/Cancel and hide apply buttons
+                    if (_editingDirty) {
+                        if (!string.IsNullOrEmpty(_presetValidationError)) {
+                            ImGui.TextColored(ImGuiColors.DalamudRed, _presetValidationError);
+                        }
+
+                        if (ImGui.Button($"Save##SavePreset-{preset.Id}")) {
+                            if (ValidateEditing(preset)) {
+                                StopEditing(save: true);
+                            }
+                        }
+
+                        ImGui.SameLine();
+                        if (ImGui.Button($"Cancel##CancelPreset-{preset.Id}")) {
+                            StopEditing(save: false);
+                        }
+                    } else {
+                        // Apply buttons (disabled globally if IPC unavailable)
+                        using (ImRaii.Disabled(!_isIpcAvailable)) {
+                            var applyLabel = $"Apply Preset ({GetScopeLabel(preset.Scope)})##ApplyPreset-{preset.Id}";
+                            if (ImGui.Button(applyLabel)) {
+                                Plugin.Apply(new FilterInput { Scope = preset.Scope, Preset = preset });
+                            }
+
+                            ImGui.SameLine();
+                            if (ImGui.Button($"Apply to Nearby Players##ApplyPlayers-{preset.Id}")) {
+                                Plugin.Apply(new FilterInput { Scope = TargetScope.Player, Preset = preset });
+                            }
+
+                            ImGui.SameLine();
+                            if (ImGui.Button($"Apply to Party##ApplyParty-{preset.Id}")) {
+                                Plugin.Apply(new FilterInput { Scope = TargetScope.Party, Preset = preset });
+                            }
+
+                            ImGui.SameLine();
+                            if (ImGui.Button($"Apply to Everyone Nearby##ApplyAll-{preset.Id}")) {
+                                Plugin.Apply(new FilterInput { Scope = TargetScope.All, Preset = preset });
+                            }
+                        }
+                    }
+
+                    ImGui.Spacing();
+                    ImGui.Separator();
+                    ImGui.Text("Per-Race Gender Selection");
+
+                    using (var table = ImRaii.Table($"PresetRaceTable-{preset.Id}", 4, ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.SizingFixedFit)) {
+                        if (table.Success) {
+                            ImGui.TableSetupColumn("Race", ImGuiTableColumnFlags.WidthFixed, 140f);
+                            ImGui.TableSetupColumn("Both", ImGuiTableColumnFlags.WidthFixed, 60f);
+                            ImGui.TableSetupColumn("Male", ImGuiTableColumnFlags.WidthFixed, 60f);
+                            ImGui.TableSetupColumn("Female", ImGuiTableColumnFlags.WidthFixed, 60f);
+                            ImGui.TableHeadersRow();
+
+                            foreach (var (race, label) in RaceOptions) {
+                                using var id = ImRaii.PushId($"{race}-{preset.Id}");
+                                if (race == Race.Unknown) continue; // skip 'Any'
+                                ImGui.TableNextRow();
+
+                                ImGui.TableNextColumn();
+                                ImGui.TextUnformatted(label);
+
+                                var sel = _editingSelections.TryGetValue(race, out var current)
+                                    ? current
+                                    : new GenderSelection { Male = false, Female = false };
+
+                                // Both
+                                ImGui.TableNextColumn();
+                                // ReSharper disable once MergeIntoPattern
+                                bool both = sel.Male && sel.Female;
+                                if (ImGui.Checkbox("##Both", ref both)) {
+                                    sel.Male = both;
+                                    sel.Female = both;
+                                    _editingSelections[race] = sel;
+                                    _editingDirty = true;
+                                }
+
+                                // Male
+                                ImGui.TableNextColumn();
+                                bool male = sel.Male;
+                                if (ImGui.Checkbox("##Male", ref male)) {
+                                    sel.Male = male;
+                                    _editingSelections[race] = sel;
+                                    _editingDirty = true;
+                                }
+
+                                // Female
+                                ImGui.TableNextColumn();
+                                bool female = sel.Female;
+                                if (ImGui.Checkbox("##Female", ref female)) {
+                                    sel.Female = female;
+                                    _editingSelections[race] = sel;
+                                    _editingDirty = true;
+                                }
+                            }
+                        }
+                    }
+
+                    ImGui.Spacing();
+
+                    ImGui.PushStyleColor(ImGuiCol.Button, ImGuiColors.DalamudRed);
+                    if (ImGui.Button($"Delete Preset##DeletePreset-{preset.Id}")) {
+                        Plugin.Config.Presets.Remove(preset);
+                        Plugin.Config.Save();
+                        ImGui.PopStyleColor();
+                        ImGui.PopID();
+                        break;
+                    }
+
                     ImGui.PopStyleColor();
-                    ImGui.PopID();
-                    break;
+                } else {
+                    // Not expected but show fallback: show live preset values if buffer mismatch
+                    ImGui.TextUnformatted(preset.Name);
                 }
-
-                ImGui.PopStyleColor();
             }
 
             ImGui.PopID();
