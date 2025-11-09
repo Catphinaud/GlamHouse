@@ -103,6 +103,8 @@ internal sealed class GlamHouseWindow : Window
         using (var tab = ImRaii.TabItem("Config")) {
             if (tab.Success) {
                 DrawConfigSection();
+                ImGui.Separator();
+                DrawPresetsSection();
             }
         }
 
@@ -142,6 +144,148 @@ internal sealed class GlamHouseWindow : Window
         }
     }
 
+    private string _selectedPresetCommand = string.Empty;
+
+    private void DrawPresetsSection()
+    {
+        ImGui.Text("Presets");
+        ImGui.SameLine();
+        if (ImGui.SmallButton("+ Add Preset##AddPreset")) {
+            var preset = new RaceGenderPreset
+            {
+                Name = "New Preset",
+                Command = $"preset-{Guid.NewGuid().ToString("N")[..8]}",
+            };
+            Plugin.Config.Presets.Add(preset);
+            Plugin.Config.Save();
+        }
+
+        if (Plugin.Config.Presets.Count == 0) {
+            ImGui.TextDisabled("No presets yet. Click '+ Add Preset' to create one.");
+            return;
+        }
+
+        ImGui.Spacing();
+
+        foreach (var preset in Plugin.Config.Presets.ToList()) {
+            var selected = _selectedPresetCommand == preset.Id.ToString();
+
+            // bool open = ImGui.CollapsingHeader(string.IsNullOrWhiteSpace(preset.Name) ? "(unnamed preset)" : preset.Name, ImGuiTreeNodeFlags.DefaultOpen);
+            bool open = ImGui.CollapsingHeader($"{preset.Name}##{preset.Id}",
+                _selectedPresetCommand == preset.Command ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None);
+
+            ImGui.PushID(preset.Id.ToString("N"));
+
+            if (open) {
+                _selectedPresetCommand = preset.Id.ToString();
+
+                string name = preset.Name ?? string.Empty;
+                if (ImGui.InputText("Name##PresetName", ref name, 128)) {
+                    preset.Name = name;
+                    Plugin.Config.Save();
+                }
+
+                string command = preset.Command ?? string.Empty;
+                if (ImGui.InputText("Command (used in /glamhouse)##PresetCommand", ref command, 64)) {
+                    preset.Command = command.Trim();
+                    Plugin.Config.Save();
+                }
+
+                ImGui.TextDisabled($"Id: {preset.Id}");
+
+                ImGui.Spacing();
+
+                // Apply buttons
+                using (ImRaii.Disabled(!_isIpcAvailable)) {
+                    if (ImGui.Button("Apply to Nearby Players##ApplyPlayers")) {
+                        Plugin.Apply(new FilterInput { Scope = TargetScope.Player, Preset = preset });
+                    }
+
+                    ImGui.SameLine();
+                    if (ImGui.Button("Apply to Party##ApplyParty")) {
+                        Plugin.Apply(new FilterInput { Scope = TargetScope.Party, Preset = preset });
+                    }
+
+                    ImGui.SameLine();
+                    if (ImGui.Button("Apply to Everyone Nearby##ApplyAll")) {
+                        Plugin.Apply(new FilterInput { Scope = TargetScope.All, Preset = preset });
+                    }
+                }
+
+                ImGui.Spacing();
+                ImGui.Separator();
+                ImGui.Text("Per-Race Gender Selection");
+
+                using (var table = ImRaii.Table("PresetRaceTable", 4, ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.SizingFixedFit)) {
+                    if (table.Success) {
+                        ImGui.TableSetupColumn("Race", ImGuiTableColumnFlags.WidthFixed, 140f);
+                        ImGui.TableSetupColumn("Both", ImGuiTableColumnFlags.WidthFixed, 60f);
+                        ImGui.TableSetupColumn("Male", ImGuiTableColumnFlags.WidthFixed, 60f);
+                        ImGui.TableSetupColumn("Female", ImGuiTableColumnFlags.WidthFixed, 60f);
+                        ImGui.TableHeadersRow();
+
+                        foreach (var (race, label) in RaceOptions) {
+                            using var id = ImRaii.PushId($"{race}-{preset.Id}");
+                            if (race == Race.Unknown) continue; // skip 'Any'
+                            ImGui.TableNextRow();
+
+                            ImGui.TableNextColumn();
+                            ImGui.TextUnformatted(label);
+
+                            var sel = preset.Selections.TryGetValue(race, out var current)
+                                ? current
+                                : new GenderSelection { Male = false, Female = false };
+
+                            // Both
+                            ImGui.TableNextColumn();
+                            bool both = sel.Male && sel.Female;
+                            if (ImGui.Checkbox("##Both", ref both)) {
+                                sel.Male = both;
+                                sel.Female = both;
+                                preset.Selections[race] = sel;
+                                Plugin.Config.Save();
+                            }
+
+                            // Male
+                            ImGui.TableNextColumn();
+                            bool male = sel.Male;
+                            if (ImGui.Checkbox("##Male", ref male)) {
+                                sel.Male = male;
+                                preset.Selections[race] = sel;
+                                Plugin.Config.Save();
+                            }
+
+                            // Female
+                            ImGui.TableNextColumn();
+                            bool female = sel.Female;
+                            if (ImGui.Checkbox("##Female", ref female)) {
+                                sel.Female = female;
+                                preset.Selections[race] = sel;
+                                Plugin.Config.Save();
+                            }
+                        }
+                    }
+                }
+
+                ImGui.Spacing();
+
+                ImGui.PushStyleColor(ImGuiCol.Button, ImGuiColors.DalamudRed);
+                if (ImGui.Button("Delete Preset##DeletePreset")) {
+                    Plugin.Config.Presets.Remove(preset);
+                    Plugin.Config.Save();
+                    ImGui.PopStyleColor();
+                    ImGui.PopID();
+                    break;
+                }
+
+                ImGui.PopStyleColor();
+            }
+
+            ImGui.PopID();
+            ImGui.Spacing();
+        }
+    }
+
     private void DrawQuickActions()
     {
         using var _ = ImRaii.Disabled(!_isIpcAvailable);
@@ -150,17 +294,14 @@ internal sealed class GlamHouseWindow : Window
             Plugin.Apply(new FilterInput { Scope = TargetScope.Player });
         }
 
-//        ImGui.SameLine();
         if (ImGui.Button("Party Members###PartyMembers")) {
             Plugin.Apply(new FilterInput { Scope = TargetScope.Party });
         }
 
-//        ImGui.SameLine();
         if (ImGui.Button("Nearby NPCs###NearbyNpcs")) {
             Plugin.Apply(new FilterInput { Scope = TargetScope.Npc });
         }
 
-//        ImGui.SameLine();
         if (ImGui.Button("Everyone###EveryoneNearby")) {
             Plugin.Apply(new FilterInput { Scope = TargetScope.All });
         }
@@ -169,7 +310,6 @@ internal sealed class GlamHouseWindow : Window
             ImGui.SetTooltip("Apply to both players and NPCs around you.");
         }
 
-//        ImGui.SameLine();
 
         using (ImRaii.Disabled(Plugin.Tracker.Count == 0)) {
             if (ImGui.Button("Reset Glamours")) {

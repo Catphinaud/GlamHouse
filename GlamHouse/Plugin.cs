@@ -133,6 +133,17 @@ public sealed class Plugin : IDalamudPlugin
             AddCommandHelp(builder, "revert", "Revert all players changed by GlamHouse.");
             builder.AddText("\nNo-arg behavior is configurable: Open UI (default), Party, Everyone.");
 
+            // Presets section
+            if (Config.Presets.Count > 0)
+            {
+                builder.AddText("\nPreset commands:");
+                foreach (var p in Config.Presets)
+                {
+                    if (string.IsNullOrWhiteSpace(p.Command)) continue;
+                    AddCommandHelp(builder, p.Command, $"Apply preset '{p.Name}'.");
+                }
+            }
+
             // or /glamhouse {gender} or /glamhouse {race} or /glamhouse {gender} {race} (you may mix order)
 
             AddCommandHelp(builder, "{ hyur | elezen | lalafell | miqote | roegadyn | aura | hroghgar | viera }");
@@ -154,7 +165,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        // Can we match race or gender or both?
+        // Can we match scope, preset, race or gender or both?
         var input = new FilterInput();
 
         if (lowerTrimmedArgs.Contains("party")) {
@@ -172,6 +183,25 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         bool matched = false;
+
+        // Preset match: allow using any token that equals a preset command
+        if (Config.Presets.Count > 0)
+        {
+            var presetMap = Config.Presets
+                .Where(p => !string.IsNullOrWhiteSpace(p.Command))
+                .ToDictionary(p => p.Command.ToLowerInvariant(), p => p);
+
+            foreach (var token in lowerTrimmedArgs.ToList())
+            {
+                if (presetMap.TryGetValue(token, out var preset))
+                {
+                    input.Preset = preset;
+                    lowerTrimmedArgs.Remove(token);
+                    matched = true;
+                    break; // single preset per command
+                }
+            }
+        }
 
         foreach (var (race, raceAliases) in raceWords) {
             if (raceAliases.Any(alias => lowerTrimmedArgs.Contains(alias))) {
@@ -231,7 +261,7 @@ public sealed class Plugin : IDalamudPlugin
     private static void Toggle(FilterInput input)
     {
         if (input.Scope == TargetScope.Party) {
-            TryOnParty();
+            TryOnParty(input);
             return;
         }
 
@@ -256,7 +286,7 @@ public sealed class Plugin : IDalamudPlugin
         GlamourerInteropt.Revert(objectIndex);
     }
 
-    private static void TryOnParty()
+    private static void TryOnParty(FilterInput input)
     {
         if (Svc.ClientState.LocalPlayer == null) {
             return;
@@ -268,22 +298,72 @@ public sealed class Plugin : IDalamudPlugin
             FillWithNewEmperor = true
         };
 
-        var members = UniversalParty.Members;
+        // Map party member names for quick lookup
+        var partyNames = UniversalParty.Members.Select(m => m.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var member in members) {
-            var objIndex = member.IGameObject.ObjectIndex;
+        foreach (var player in Svc.Objects.PlayerObjects)
+        {
+            var nameString = player.Name.ToString();
+            if (!partyNames.Contains(nameString)) continue; // skip non-party players
 
-            Svc.Log.Debug($"Trying to glamour party member: {member.Name} (ObjectIndex: {objIndex})");
+            var objIndex = player.ObjectIndex;
+            Svc.Log.Debug($"Trying to glamour party player: {player.Name} (ObjectIndex: {objIndex})");
 
-            if (!member.IGameObject.IsValid()) {
-                continue;
+            try
+            {
+                if (!player.IsValid()) continue;
+                if (!player.IsCharacterVisible()) continue;
+
+                unsafe
+                {
+                    var character = player.Character();
+                    if (character == null) continue;
+
+                    var gender = character->Sex switch
+                    {
+                        0 => Gender.Male,
+                        1 => Gender.Female,
+                        _ => Gender.Unknown
+                    };
+
+                    var race = character->DrawData.CustomizeData.Race switch
+                    {
+                        1 => Race.Hyur,
+                        2 => Race.Elezen,
+                        3 => Race.Lalafell,
+                        4 => Race.Miqote,
+                        5 => Race.Roegadyn,
+                        6 => Race.AuRa,
+                        7 => Race.Hrothgar,
+                        8 => Race.Viera,
+                        _ => Race.Unknown
+                    };
+
+                    if (input.Preset != null && !input.Preset.IsAllowed(race, gender))
+                    {
+                        Svc.Log.Debug($"Skipping party player {player.Name} due to preset disallow: {input.Preset.Name}");
+                        continue;
+                    }
+
+                    if (input.Gender != Gender.Unknown && input.Gender != gender)
+                    {
+                        Svc.Log.Debug($"Skipping party player {player.Name} due to gender: {input.Gender:G} != {gender:G}");
+                        continue;
+                    }
+
+                    if (input.Race != Race.Unknown && input.Race != race)
+                    {
+                        Svc.Log.Debug($"Skipping party player {player.Name} due to race: {input.Race:G} != {race:G}");
+                        continue;
+                    }
+
+                    Tracker.RecordApplied(objIndex, nameString, race, gender, player.ObjectKind);
+                    GlamourerInteropt.TryOn(objIndex, plate);
+                }
             }
-
-            try {
-                Tracker.RecordApplied(objIndex, member.Name, Race.Unknown, Gender.Unknown, member.IGameObject.ObjectKind);
-                GlamourerInteropt.TryOn(objIndex, plate);
-            } catch (Exception ex) {
-                Svc.Log.Error(ex, $"Failed to glamour party member: {member.Name} (ObjectIndex: {objIndex})");
+            catch (Exception ex)
+            {
+                Svc.Log.Error(ex, $"Failed to glamour party player: {player.Name} (ObjectIndex: {objIndex})");
             }
         }
     }
@@ -345,6 +425,12 @@ public sealed class Plugin : IDalamudPlugin
                     8 => Race.Viera,
                     _ => Race.Unknown
                 };
+
+                if (input.Preset != null && !input.Preset.IsAllowed(race, gender))
+                {
+                    Svc.Log.Debug($"Skipping player {player.Name} due to preset disallow: {input.Preset.Name}");
+                    continue;
+                }
 
                 if (input.Gender != Gender.Unknown && input.Gender != gender) {
                     Svc.Log.Debug($"Skipping player {player.Name} due to gender: {input.Gender:G} != {gender:G}");
@@ -442,6 +528,7 @@ internal record FilterInput
     public TargetScope Scope { get; set; } = TargetScope.Player;
     public Race Race { get; set; } = Race.Unknown;
     public Gender Gender { get; set; } = Gender.Unknown;
+    public RaceGenderPreset? Preset { get; set; } = null; // optional preset filter
 }
 
 public enum TargetScope
