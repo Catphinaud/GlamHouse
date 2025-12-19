@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Dalamud.NET.Sdk/13.1.0">
+<Project Sdk="Dalamud.NET.Sdk/14.0.1">
   <PropertyGroup>
-    <Version>1.0.4.5</Version>
+    <Version>1.0.4.7</Version>
     <Description>GlamHouse</Description>
     <PackageProjectUrl>https://github.com/Catphinaud/GlamHouse</PackageProjectUrl>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
@@ -11,6 +11,6 @@
       <ProjectReference Include="..\thirdparty\Glamourer.Api\Glamourer.Api.csproj" />
     </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="ECommons" Version="3.0.1.26" />
+    <PackageReference Include="ECommons" Version="3.1.0.5" />
   </ItemGroup>
 </Project>

@@ -288,7 +288,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private static void TryOnParty(FilterInput input)
     {
-        if (Svc.ClientState.LocalPlayer == null) {
+        if (!Svc.ClientState.IsLoggedIn) {
             return;
         }
 
@@ -370,7 +370,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private static unsafe void TryOnAllNearby(FilterInput input)
     {
-        if (Svc.ClientState.LocalPlayer == null) {
+        if (!Svc.ClientState.IsLoggedIn) {
             return;
         }
 
@@ -453,7 +453,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private static void TryOnAllNearbyNpcs()
     {
-        if (Svc.ClientState.LocalPlayer == null) {
+        if (!Svc.ClientState.IsLoggedIn) {
             return;
         }
 
