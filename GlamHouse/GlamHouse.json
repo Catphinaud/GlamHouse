@@ -7,7 +7,7 @@
     "ApplicableVersion": "any",
     "InternalName": "GlamHouse",
     "RepoUrl": "https://github.com/Catphinaud/GlamHouse",
-    "DalamudApiLevel": 14,
+    "DalamudApiLevel": 15,
     "Tags": [
         "emperor",
         "glamour",

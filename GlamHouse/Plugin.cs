@@ -15,7 +15,6 @@ using ECommons;
 using ECommons.DalamudServices;
 using ECommons.GameFunctions;
 using ECommons.PartyFunctions;
-using VT = FFXIVClientStructs.FFXIV.Component.GUI.ValueType;
 
 namespace GlamHouse;
 
